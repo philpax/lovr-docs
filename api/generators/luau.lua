@@ -2,16 +2,38 @@ local preamble = [[
 declare extern type userdata with end
 declare extern type lightuserdata with end
 
-declare extern type quaternion with
-  x: number
-  y: number
-  z: number
-  w: number
-end
-
 ]]
 
 local genFunctionType
+
+-- Documented as modules, reached as globals: there is no `lovr.vector`.
+--
+-- Each is also a type the fork layers onto Luau's own, and declaring one
+-- replaces the builtin rather than extending it, so the fields and operators
+-- are restated here alongside the generated methods. What is listed matches
+-- what the runtime answers to: vectors are three-wide, and neither `#` nor `^`
+-- is defined on one.
+local globalModule = {
+  vector = {
+    fields = { 'x: number', 'y: number', 'z: number' },
+    operators = {
+      'function __add(self, other: vector): vector',
+      'function __sub(self, other: vector): vector',
+      'function __mul(self, other: vector): vector',
+      'function __mul(self, other: number): vector',
+      'function __div(self, other: vector): vector',
+      'function __div(self, other: number): vector',
+      'function __unm(self): vector'
+    }
+  },
+  quaternion = {
+    fields = { 'x: number', 'y: number', 'z: number', 'w: number' },
+    operators = {
+      'function __mul(self, other: quaternion): quaternion',
+      'function __mul(self, other: vector): vector'
+    }
+  }
+}
 
 local function genType(info)
   local types = {}
@@ -141,7 +163,7 @@ return function(api)
     -- Mat4 is not ignored: other signatures refer to it by name, so omitting it
     -- leaves the definitions unloadable. Vec2/Vec3/Vec4/Quat stay ignored and
     -- are not emitted regardless, since the docs express them as the native
-    -- vector and quaternion types the preamble declares.
+    -- `vector` and `quaternion` types declared below.
     local ignore = {
       Vec2 = true,
       Vec3 = true,
@@ -229,12 +251,44 @@ return function(api)
   write('\n')
 
   for _, module in ipairs(api.modules) do
-    if module.name ~= 'lovr' and #module.functions > 0 then
+    if module.name ~= 'lovr' and #module.functions > 0 and not globalModule[module.name] then
       write('  %s: %sModule,\n', module.name, module.name:gsub('^%l', string.upper))
     end
   end
 
   write('}\n')
+
+  for _, module in ipairs(api.modules) do
+    local native = globalModule[module.name]
+    if native and #module.functions > 0 then
+      write('\ndeclare extern type %s with\n', module.name)
+
+      for _, field in ipairs(native.fields) do
+        write('  %s\n', field)
+      end
+      for _, operator in ipairs(native.operators) do
+        write('  %s\n', operator)
+      end
+
+      -- The method form of each library function, which the runtime carries
+      -- too: `vector.normalize(v)` is also `v:normalize()`. The receiver is the
+      -- first argument, so it becomes `self`.
+      for _, fn in ipairs(module.functions) do
+        for _, variant in ipairs(fn.variants) do
+          if variant.arguments and #variant.arguments > 0 then
+            local rest = {}
+            for index = 2, #variant.arguments do
+              table.insert(rest, variant.arguments[index])
+            end
+            write('%s\n', genMethod(fn, { arguments = rest, returns = variant.returns }))
+          end
+        end
+      end
+
+      write('end\n')
+      write('\ndeclare %s: %sModule\n', module.name, module.name:gsub('^%l', string.upper))
+    end
+  end
 
   local file = assert(io.open(directory .. '/lovr.d.luau', 'w'))
   file:write(table.concat(out):sub(1, -2))
