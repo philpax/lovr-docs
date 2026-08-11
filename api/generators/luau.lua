@@ -9,8 +9,8 @@ declare extern type quaternion with
   w: number
 end
 
-declare class Joint end
-declare class Shape end
+declare extern type Joint with end
+declare extern type Shape with end
 ]]
 
 local genFunctionType
@@ -151,13 +151,13 @@ return function(api)
 
     for _, object in ipairs(module.objects) do
       if not ignore[object.name] then
-        write('declare class %s', object.name)
+        write('declare extern type %s', object.name)
 
         if object.extends then
           write(' extends %s', object.extends)
         end
 
-        write('\n')
+        write(' with\n')
 
         for _, method in ipairs(object.methods) do
           for _, variant in ipairs(method.variants) do
