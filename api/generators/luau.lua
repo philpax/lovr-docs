@@ -9,8 +9,6 @@ declare extern type quaternion with
   w: number
 end
 
-declare extern type Joint with end
-declare extern type Shape with end
 ]]
 
 local genFunctionType
@@ -152,23 +150,52 @@ return function(api)
       Vectors = true
     }
 
+    local function writeObject(object)
+      write('declare extern type %s', object.name)
+
+      if object.extends then
+        write(' extends %s', object.extends)
+      end
+
+      write(' with\n')
+
+      for _, method in ipairs(object.methods) do
+        for _, variant in ipairs(method.variants) do
+          write('%s\n', genMethod(method, variant))
+        end
+      end
+
+      write('end\n\n')
+    end
+
+    -- A type cannot be declared before the one it extends, and the objects
+    -- arrive in alphabetical order, so `BallJoint` precedes `Joint`. Each base
+    -- is emitted ahead of what extends it. A base from another module is
+    -- already declared, and one that never becomes ready is a cycle in the
+    -- metadata, so it is emitted anyway rather than dropped.
+    local pending, here, emitted = {}, {}, {}
     for _, object in ipairs(module.objects) do
       if not ignore[object.name] then
-        write('declare extern type %s', object.name)
+        table.insert(pending, object)
+        here[object.name] = true
+      end
+    end
 
-        if object.extends then
-          write(' extends %s', object.extends)
+    repeat
+      local progressed = false
+      for index, object in ipairs(pending) do
+        if object ~= false and (not object.extends or not here[object.extends] or emitted[object.extends]) then
+          writeObject(object)
+          emitted[object.name] = true
+          pending[index] = false
+          progressed = true
         end
+      end
+    until not progressed
 
-        write(' with\n')
-
-        for _, method in ipairs(object.methods) do
-          for _, variant in ipairs(method.variants) do
-            write('%s\n', genMethod(method, variant))
-          end
-        end
-
-        write('end\n\n')
+    for _, object in ipairs(pending) do
+      if object ~= false then
+        writeObject(object)
       end
     end
 
