@@ -31153,7 +31153,13 @@ return {
           variants = {
             {
               arguments = {},
-              returns = {}
+              returns = {
+                {
+                  name = "q",
+                  type = "quaternion",
+                  description = "The new quaternion."
+                }
+              }
             }
           }
         },
@@ -31496,7 +31502,13 @@ return {
           variants = {
             {
               arguments = {},
-              returns = {}
+              returns = {
+                {
+                  name = "q",
+                  type = "quaternion",
+                  description = "The new quaternion."
+                }
+              }
             }
           }
         },
