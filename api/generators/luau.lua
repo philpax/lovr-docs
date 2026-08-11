@@ -140,12 +140,15 @@ return function(api)
       write('\n')
     end
 
+    -- Mat4 is not ignored: other signatures refer to it by name, so omitting it
+    -- leaves the definitions unloadable. Vec2/Vec3/Vec4/Quat stay ignored and
+    -- are not emitted regardless, since the docs express them as the native
+    -- vector and quaternion types the preamble declares.
     local ignore = {
       Vec2 = true,
       Vec3 = true,
       Vec4 = true,
       Quat = true,
-      Mat4 = true,
       Vectors = true
     }
 
