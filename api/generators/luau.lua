@@ -81,7 +81,12 @@ local function genReturns(returns)
   local t = {}
 
   for _, ret in ipairs(returns) do
-    table.insert(t, genType(ret))
+    local type = genType(ret)
+    if ret.name and ret.name:match('%.%.%.') then
+      table.insert(t, '...' .. type)
+    else
+      table.insert(t, type)
+    end
   end
 
   return table.concat(t, ', ')
@@ -153,7 +158,7 @@ return function(api)
 
   for _, module in ipairs(api.modules) do
     for _, enum in ipairs(module.enums) do
-      write('type %s =\n', enum.name)
+      write('export type %s =\n', enum.name)
       for _, value in ipairs(enum.values) do
         write('  | %q\n', value.name)
       end
@@ -222,7 +227,7 @@ return function(api)
     end
 
     if module.name ~= 'lovr' and #module.functions > 0 then
-      write('type %sModule = {\n', module.name:gsub('^%l', string.upper))
+      write('export type %sModule = {\n', module.name:gsub('^%l', string.upper))
 
       for _, fn in ipairs(module.functions) do
         writeFunction(fn)
