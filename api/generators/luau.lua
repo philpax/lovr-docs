@@ -50,10 +50,15 @@ local function genType(info)
     end
   end
 
+  -- A `?` suffix in the metadata and a documented default both mean the same
+  -- thing about an argument: it may be left out. The suffix does not survive
+  -- the pattern above, so both are read here.
+  local optional = info.default ~= nil or info.type:find('%?')
+
   if #types == 1 then
-    return types[1]
+    return types[1] .. (optional and '?' or '')
   else
-    return table.concat(types, ' | ') .. (info.default and ' | nil' or '')
+    return table.concat(types, ' | ') .. (optional and ' | nil' or '')
   end
 end
 
@@ -249,8 +254,19 @@ return function(api)
 
   write('\n')
 
+  -- Every callback is optional. Nothing sets them by default and boot.lua tests
+  -- each for presence before it calls one, so a declaration that says otherwise
+  -- makes clearing a callback a type error.
   for _, callback in ipairs(api.callbacks) do
-    writeFunction(callback)
+    if #callback.variants > 1 then
+      write('  %s:\n', callback.name)
+
+      for i, variant in ipairs(callback.variants) do
+        write('    & (%s)%s\n', genFunctionType(variant), i == #callback.variants and '?,' or '')
+      end
+    else
+      write('  %s: (%s)?,\n', callback.name, genFunctionType(callback.variants[1]))
+    end
   end
 
   write('\n')
@@ -291,7 +307,26 @@ return function(api)
       end
 
       write('end\n')
-      write('\ndeclare %s: %sModule\n', module.name, module.name:gsub('^%l', string.upper))
+      -- Callable as well as indexable: `vector(x, y, z)` is documented as a
+      -- synonym for `vector.pack(x, y, z)`, and the same holds for
+      -- `quaternion`. A table type alone cannot say so, so the declaration is
+      -- the module intersected with what calling it answers.
+      local pack = nil
+      for _, fn in ipairs(module.functions) do
+        if fn.name == 'pack' then
+          pack = fn
+        end
+      end
+
+      write('\ndeclare %s: %sModule', module.name, module.name:gsub('^%l', string.upper))
+
+      if pack then
+        for _, variant in ipairs(pack.variants) do
+          write('\n  & (%s)', genFunctionType(variant))
+        end
+      end
+
+      write('\n')
     end
   end
 
