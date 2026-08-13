@@ -149,7 +149,59 @@ return function(api)
   write(preamble:gsub('^%s*', ''))
   write('\n')
 
+  -- A variant taking nothing, next to one taking a variadic pack, is a call
+  -- Luau cannot resolve: both accept zero arguments, and it reports the call as
+  -- ambiguous rather than picking one. The variadic covers the empty case, so
+  -- the empty variant is dropped where the two sit together. `lovr.math.newMat4()`
+  -- and `lovr.graphics.newPass()` are the two this is for.
+  local function usableVariants(fn)
+    local variadic = false
+
+    for _, variant in ipairs(fn.variants) do
+      for _, argument in ipairs(variant.arguments) do
+        if argument.name:match('%.%.%.') then
+          variadic = true
+        end
+      end
+    end
+
+    if not variadic then
+      return fn.variants
+    end
+
+    -- The variadic answers the empty call, so every other variant is written as
+    -- taking at least its first argument. Without that, a variant whose
+    -- arguments are all defaulted answers the empty call as well, and the
+    -- ambiguity is back one arm along.
+    local kept = {}
+    for _, variant in ipairs(fn.variants) do
+      if #variant.arguments > 0 then
+        local arguments = {}
+
+        for index, argument in ipairs(variant.arguments) do
+          if index == 1 then
+            local required = {}
+            for key, value in pairs(argument) do
+              required[key] = value
+            end
+            required.default = nil
+            required.type = argument.type:gsub('%?$', '')
+            table.insert(arguments, required)
+          else
+            table.insert(arguments, argument)
+          end
+        end
+
+        table.insert(kept, { arguments = arguments, returns = variant.returns })
+      end
+    end
+
+    return kept
+  end
+
   local function writeFunction(fn)
+    fn = { name = fn.name, variants = usableVariants(fn) }
+
     if #fn.variants > 1 then
       write('  %s:\n', fn.name)
 
