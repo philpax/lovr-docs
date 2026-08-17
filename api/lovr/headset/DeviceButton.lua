@@ -63,8 +63,8 @@ return {
       description = 'The right button on a dpad, or a hand tracking thumb swipe gesture.'
     },
     {
-      name = 'bumper',
-      description = 'The bumper or shoulder button (usually located above a trigger).'
+      name = 'shoulder',
+      description = 'The shoulder button (usually located above a trigger).'
     },
     {
       name = 'nib',
