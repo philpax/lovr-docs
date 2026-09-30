@@ -13,6 +13,8 @@ return {
   arguments = {
     t = {
       type = 'table',
+      alias = 'LovrConfiguration',
+      mutable = true,
       description = 'The table to edit the configuration settings on.',
       table = {
         {
@@ -79,6 +81,11 @@ return {
               description = 'Whether the system module should be enabled.'
             },
             {
+              name = 'task',
+              type = 'boolean',
+              description = 'Whether the task module should be enabled.'
+            },
+            {
               name = 'thread',
               type = 'boolean',
               description = 'Whether the thread module should be enabled.'
@@ -102,12 +109,13 @@ return {
             },
             {
               name = 'samplerate',
-              type = 'number',
+              type = 'number?',
               description = 'The sample rate to use for audio playback.'
             },
             {
               name = 'start',
               type = 'boolean',
+              writeType = 'boolean?',
               description = [[
                 Whether the default playback device should start automatically when a source is
                 first played.
@@ -116,12 +124,14 @@ return {
             {
               name = 'reverb',
               type = 'table',
+              writeType = 'table?',
               description = 'Reverb settings.',
               table = {
                 {
                   name = 'type',
                   type = 'ReverbType',
-                  description = 'Which type of reverb to use.'
+                  values = { 'none', 'convolution', 'parametric' },
+                  description = 'Which type of reverb to use, or none to disable reverb.'
                 },
                 {
                   name = 'rays',
@@ -185,6 +195,11 @@ return {
               description = 'Whether the desktop window rendering should be antialiased.'
             },
             {
+              name = 'lowpower',
+              type = 'boolean',
+              description = 'Whether to prefer a low-power GPU.'
+            },
+            {
               name = 'hdr',
               type = 'boolean',
               description = [[
@@ -215,8 +230,14 @@ return {
               description = 'Whether a VR session should begin at startup.'
             },
             {
+              name = 'debug',
+              type = 'boolean',
+              description = 'Whether to log headset debugging messages.'
+            },
+            {
               name = 'supersample',
-              type = 'number',
+              type = 'boolean | number | nil',
+              readType = 'boolean',
               description = [[
                 A scaling factor to apply to the headset texture.  Can be any positive floating
                 point number, which gets multiplied by the default texture resolution.  A value
@@ -235,6 +256,7 @@ return {
             {
               name = 'mask',
               type = 'boolean',
+              writeType = 'boolean?',
               description = [[
                 Enable or disable the headset mask.  This is an optimization that skips rendering
                 pixels on the edges of the headset texture that can't be seen while in the headset
@@ -245,12 +267,19 @@ return {
             {
               name = 'antialias',
               type = 'boolean',
+              writeType = 'boolean?',
               description = 'Whether headset rendering should be antialiased.'
             },
             {
               name = 'stencil',
               type = 'boolean',
               description = 'Whether headset rendering should have a stencil buffer.'
+            },
+            {
+              name = 'dynamicresolution',
+              type = 'boolean',
+              writeType = 'boolean?',
+              description = 'Whether the headset texture resolution can change to maintain performance.'
             },
             {
               name = 'submitdepth',
@@ -261,12 +290,25 @@ return {
             },
             {
               name = 'overlay',
-              type = 'boolean',
+              type = 'boolean | number',
+              readType = 'boolean',
               description = [[
                 Whether the project should run as an overlay.  Can also be a number to control sort
                 order against other overlays (default is zero, higher numbers go on top).  Requires
                 the `overlay` headset feature to be supported, see `lovr.headset.getFeatures`.
               ]]
+            },
+            {
+              name = 'controllerskeleton',
+              type = 'string',
+              values = { 'none', 'controller', 'natural' },
+              writeType = 'string?',
+              description = 'Which controller skeleton to use: none, controller, or natural.'
+            },
+            {
+              name = 'extensions',
+              type = '{string}?',
+              description = 'Additional OpenXR extensions to enable.'
             }
           }
         },
@@ -290,6 +332,7 @@ return {
             {
               name = 'workers',
               type = 'number',
+              writeType = 'number?',
               description = [[
                 The number of worker threads to spawn.  Can be negative, which will be added to the
                 number of cores in the system.
@@ -299,17 +342,20 @@ return {
         },
         {
           name = 'window',
-          type = 'table',
-          description = 'Configuration for the window.',
+          type = 'table?',
+          readType = 'table',
+          description = 'Configuration for the window, or nil to avoid opening a window.',
           table = {
             {
               name = 'width',
               type = 'number',
+              writeType = 'number?',
               description = 'The width of the window.'
             },
             {
               name = 'height',
               type = 'number',
+              writeType = 'number?',
               description = 'The height of the window.'
             },
             {
@@ -330,12 +376,13 @@ return {
             {
               name = 'title',
               type = 'string',
+              writeType = 'string?',
               description = 'The window title.'
             },
             {
               name = 'icon',
-              type = 'string',
-              description = 'The path to the window icon file.'
+              type = 'string | Blob | Image | nil',
+              description = 'A path, Blob, or Image for the window icon, or nil for no icon.'
             }
           }
         }
@@ -368,14 +415,14 @@ return {
     code = [[
         function lovr.conf(t)
 
-          -- Set the project version and identity
+          -- Set the project version and identity.
           t.version = '0.19.0'
           t.identity = 'default'
 
-          -- Set save directory precedence
+          -- Set save directory precedence.
           t.saveprecedence = true
 
-          -- Enable or disable different modules
+          -- Enable or disable different modules.
           t.modules.audio = true
           t.modules.data = true
           t.modules.event = true
@@ -384,46 +431,53 @@ return {
           t.modules.math = true
           t.modules.physics = true
           t.modules.system = true
+          t.modules.task = true
           t.modules.thread = true
           t.modules.timer = true
 
-          -- Audio
+          -- Audio settings.
           t.audio.debug = false
-          t.audio.samplerate = 48000
+          t.audio.samplerate = nil
           t.audio.start = true
-          t.audio.reverb.type = 'convolution'
+          t.audio.reverb.type = 'none'
           t.audio.reverb.rays = 4096
-          t.audio.reverb.bounces = 4
+          t.audio.reverb.bounces = 16
           t.audio.reverb.duration = 2
           t.audio.reverb.rate = .1
 
-          -- Graphics
+          -- Graphics settings.
           t.graphics.debug = false
           t.graphics.vsync = true
           t.graphics.stencil = false
           t.graphics.antialias = true
+          t.graphics.lowpower = false
+          t.graphics.hdr = false
           t.graphics.shadercache = true
 
-          -- Headset settings
+          -- Headset settings.
           t.headset.connect = true
           t.headset.start = true
+          t.headset.debug = false
           t.headset.supersample = false
+          t.headset.dynamicresolution = true
           t.headset.seated = false
           t.headset.mask = true
           t.headset.antialias = true
           t.headset.stencil = false
           t.headset.submitdepth = true
           t.headset.overlay = false
+          t.headset.controllerskeleton = 'controller'
+          t.headset.extensions = nil
 
-          -- Math settings
+          -- Math settings.
           t.math.globals = true
 
-          -- Thread settings
+          -- Thread settings.
           t.thread.workers = -1
 
-          -- Configure the desktop window
-          t.window.width = 1080
-          t.window.height = 600
+          -- Configure the desktop window.
+          t.window.width = 1280
+          t.window.height = 800
           t.window.centered = true
           t.window.fullscreen = false
           t.window.resizable = false

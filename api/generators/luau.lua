@@ -35,28 +35,74 @@ local globalModule = {
   }
 }
 
-local function genType(info)
-  local types = {}
+local genType
 
-  for t in info.type:gmatch('[%w{}%*%.]+') do
-    if t == 'function' then
-      table.insert(types, genFunctionType(info))
-    elseif t == '*' then
-      table.insert(types, 'any')
-    elseif t == 'table' then
-      table.insert(types, '{}')
+local function genTableType(info, mutable)
+  if not info.table then return '{}' end
+
+  local fields = {}
+  for _, field in ipairs(info.table) do
+    local name = field.name:gsub('%?$', '')
+    local key = name:match('^[%a_][%w_]*$') and name or ('[%q]'):format(name)
+    if mutable and (field.readType or field.writeType) then
+      local readable, writable = {}, {}
+      for k, v in pairs(field) do readable[k], writable[k] = v, v end
+      readable.type = field.readType or field.type
+      writable.type = field.writeType or field.type
+      readable.default, writable.default = nil, nil
+      table.insert(fields, ('read %s: %s, write %s: %s'):format(key, genType(readable, mutable), key, genType(writable, mutable)))
     else
-      table.insert(types, t)
+      table.insert(fields, ('%s%s: %s'):format(mutable and '' or 'read ', key, genType(field, mutable)))
+    end
+  end
+  return '{ ' .. table.concat(fields, ', ') .. ' }'
+end
+
+-- Split unions only outside array types, so an array of a union stays an array.
+local function typeVariants(type)
+  local variants, depth, start = {}, 0, 1
+  for i = 1, #type do
+    local char = type:sub(i, i)
+    if char == '{' then depth = depth + 1
+    elseif char == '}' then depth = depth - 1
+    elseif char == '|' and depth == 0 then
+      table.insert(variants, type:sub(start, i - 1):match('^%s*(.-)%s*$'))
+      start = i + 1
+    end
+  end
+  table.insert(variants, type:sub(start):match('^%s*(.-)%s*$'))
+  return variants
+end
+
+genType = function(info, mutable)
+  mutable = info.mutable == nil and mutable or info.mutable
+  local types = {}
+  local optional = info.default ~= nil or (info.name and info.name:match('%?$')) or info.type:match('%?$')
+
+  if info.values then
+    for _, value in ipairs(info.values) do table.insert(types, ('%q'):format(value)) end
+  else
+    for _, variant in ipairs(typeVariants(info.type)) do
+      optional = optional or variant:match('%?$')
+      local t = variant:gsub('%?$', '')
+      if t == 'function' then
+        table.insert(types, genFunctionType(info))
+      elseif t == '*' then
+        table.insert(types, 'any')
+      elseif t == 'table' then
+        table.insert(types, genTableType(info, mutable))
+      elseif t:match('^%{.*%}$') then
+        table.insert(types, '{' .. genType({ type = t:sub(2, -2) }, mutable) .. '}')
+      else
+        table.insert(types, t)
+      end
     end
   end
 
-  -- A `?` suffix in the metadata and a documented default both mean the same
-  -- thing about an argument: it may be left out. The suffix does not survive
-  -- the pattern above, so both are read here.
-  local optional = info.default ~= nil or info.type:find('%?')
-
   if #types == 1 then
-    return types[1] .. (optional and '?' or '')
+    local type = types[1]
+    if optional and type:find('%->') then type = '(' .. type .. ')' end
+    return type .. (optional and '?' or '')
   else
     return table.concat(types, ' | ') .. (optional and ' | nil' or '')
   end
@@ -66,7 +112,7 @@ local function genArguments(arguments, ismethod)
   local t = {}
 
   for _, arg in ipairs(arguments) do
-    local name, type = arg.name, genType(arg)
+    local name, type = arg.name, arg.alias or genType(arg)
 
     if name:match('%.%.%.') then
       if ismethod then
@@ -291,6 +337,18 @@ return function(api)
       end
 
       write('}\n\n')
+    end
+  end
+
+  local aliases = {}
+  for _, callback in ipairs(api.callbacks) do
+    for _, variant in ipairs(callback.variants) do
+      for _, argument in ipairs(variant.arguments) do
+        if argument.alias and not aliases[argument.alias] then
+          write('export type %s = %s\n\n', argument.alias, genType(argument))
+          aliases[argument.alias] = true
+        end
+      end
     end
   end
 
