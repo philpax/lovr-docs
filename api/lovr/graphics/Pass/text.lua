@@ -8,7 +8,7 @@ return {
       description = 'The text to render.'
     },
     colortext = {
-      type = 'table',
+      type = '{*}',
       description = [[
         A table of multicolor strings to render.  Can be a flat table, like
         `{ color, string, color, string }`, or as nested pairs, like

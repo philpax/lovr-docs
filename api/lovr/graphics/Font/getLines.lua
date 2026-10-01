@@ -12,7 +12,7 @@ return {
       description = 'The text to wrap.'
     },
     strings = {
-      type = 'table',
+      type = '{*}',
       description = [[
         A table of multicolor strings to wrap.  The colors aren't used for anything, this just
         exists to match `Pass:text`.
