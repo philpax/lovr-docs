@@ -11,7 +11,7 @@ return {
       description = 'The text to render.'
     },
     strings = {
-      type = 'table',
+      type = '{*}',
       description = [[
         A table of multicolor strings.  The colors aren't used for anything, this just exists to
         match `Pass:text`.

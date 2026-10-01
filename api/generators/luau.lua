@@ -37,7 +37,7 @@ local globalModule = {
 
 local genType
 
-local function genTableType(info, mutable)
+local function genTableType(info, mutable, input)
   if not info.table then return '{}' end
 
   local fields = {}
@@ -50,9 +50,9 @@ local function genTableType(info, mutable)
       readable.type = field.readType or field.type
       writable.type = field.writeType or field.type
       readable.default, writable.default = nil, nil
-      table.insert(fields, ('read %s: %s, write %s: %s'):format(key, genType(readable, mutable), key, genType(writable, mutable)))
+      table.insert(fields, ('read %s: %s, write %s: %s'):format(key, genType(readable, mutable, input), key, genType(writable, mutable, input)))
     else
-      table.insert(fields, ('%s%s: %s'):format(mutable and '' or 'read ', key, genType(field, mutable)))
+      table.insert(fields, ('%s%s: %s'):format(mutable and '' or 'read ', key, genType(field, mutable, input)))
     end
   end
   return '{ ' .. table.concat(fields, ', ') .. ' }'
@@ -74,7 +74,12 @@ local function typeVariants(type)
   return variants
 end
 
-genType = function(info, mutable)
+-- `input` marks a type LÖVR reads from its caller: an argument, or a field of
+-- one. An array there is read-only, `{ read [number]: T }`. LÖVR does not
+-- write into it, and Luau compares a read-write indexer invariantly, so a
+-- read-write array rejects a table literal passed to an overloaded function,
+-- and a caller's `{integer}` where `{number}` is declared.
+genType = function(info, mutable, input)
   mutable = info.mutable == nil and mutable or info.mutable
   local types = {}
   local optional = info.default ~= nil or (info.name and info.name:match('%?$')) or info.type:match('%?$')
@@ -90,9 +95,14 @@ genType = function(info, mutable)
       elseif t == '*' then
         table.insert(types, 'any')
       elseif t == 'table' then
-        table.insert(types, genTableType(info, mutable))
+        table.insert(types, genTableType(info, mutable, input))
       elseif t:match('^%{.*%}$') then
-        table.insert(types, '{' .. genType({ type = t:sub(2, -2) }, mutable) .. '}')
+        local element = genType({ type = t:sub(2, -2) }, mutable, input)
+        if input and not mutable then
+          table.insert(types, '{ read [number]: ' .. element .. ' }')
+        else
+          table.insert(types, '{' .. element .. '}')
+        end
       else
         table.insert(types, t)
       end
@@ -112,7 +122,7 @@ local function genArguments(arguments, ismethod)
   local t = {}
 
   for _, arg in ipairs(arguments) do
-    local name, type = arg.name, arg.alias or genType(arg)
+    local name, type = arg.name, arg.alias or genType(arg, false, true)
 
     if name:match('%.%.%.') then
       if ismethod then

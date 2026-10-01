@@ -10,7 +10,7 @@ return {
       description = 'The text to measure.'
     },
     strings = {
-      type = 'table',
+      type = '{*}',
       description = [[
         A table of multicolor strings to measure.  The colors aren't used for anything, this just
         exists to match `Pass:text`.
