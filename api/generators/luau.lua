@@ -38,8 +38,64 @@ local globalModule = {
 
 local genType
 
-local function genTableType(info, mutable, input)
+local function check(condition, message)
+  if not condition then error('luau generator: ' .. message, 0) end
+end
+
+local function checkSequence(sequence, kind)
+  check(type(sequence) == 'table', kind .. ' must be an array')
+  local count = 0
+  for key in pairs(sequence) do
+    check(type(key) == 'number' and key >= 1 and key % 1 == 0, kind .. ' must be an array')
+    count = count + 1
+  end
+  for index = 1, count do check(sequence[index] ~= nil, kind .. ' must be a dense array') end
+end
+
+local genTableType
+
+-- An array, read-only where LÖVR reads it from its caller (see genType).
+local function genArrayType(element, mutable, input)
+  if input and not mutable then return '{ read [number]: ' .. element .. ' }' end
+  return '{' .. element .. '}'
+end
+
+-- Fields named `[].name` describe each element of an array, and `[][n]` a position in each element.
+-- Positions become a union, because Luau has no heterogeneous tuple type.
+local function genElementType(fields, mutable, input)
+  local stripped, positional = {}, true
+  for _, field in ipairs(fields) do
+    local name = field.name:sub(3):gsub('^%.', '')
+    local copy = {}
+    for k, v in pairs(field) do copy[k] = v end
+    copy.name = name
+    table.insert(stripped, copy)
+    positional = positional and name:match('^%[%d+%]$') ~= nil
+  end
+  if not positional then return genArrayType(genTableType({ table = stripped }, mutable, input), mutable, input) end
+  local seen, variants = {}, {}
+  for _, field in ipairs(stripped) do
+    local variant = genType(field, mutable, input)
+    if not seen[variant] then seen[variant] = true table.insert(variants, variant) end
+  end
+  return genArrayType(genArrayType(table.concat(variants, ' | '), mutable, input), mutable, input)
+end
+
+genTableType = function(info, mutable, input)
   if not info.table then return '{}' end
+
+  checkSequence(info.table, 'fields')
+  local names, elements, own = {}, 0, 0
+  for _, field in ipairs(info.table) do
+    check(type(field) == 'table' and type(field.name) == 'string' and field.name ~= '', 'fields must have names')
+    check(type(field.type) == 'string', 'field ' .. field.name .. ' must have a string type')
+    local name = field.name:gsub('%?$', '')
+    check(not names[name], 'duplicate field ' .. name)
+    names[name] = true
+    if name:match('^%[%]') then elements = elements + 1 else own = own + 1 end
+  end
+  check(elements == 0 or own == 0, 'a table cannot mix element fields with its own fields')
+  if elements > 0 then return genElementType(info.table, mutable, input) end
 
   local fields = {}
   for _, field in ipairs(info.table) do
@@ -83,11 +139,25 @@ end
 genType = function(info, mutable, input)
   mutable = info.mutable == nil and mutable or info.mutable
   local types = {}
+  check(type(info.type) == 'string', 'metadata must have a string type')
   local optional = info.default ~= nil or (info.name and info.name:match('%?$')) or info.type:match('%?$')
 
   if info.values then
-    for _, value in ipairs(info.values) do table.insert(types, ('%q'):format(value)) end
+    checkSequence(info.values, 'choices')
+    check(#info.values > 0, 'choices must not be empty')
+    for _, value in ipairs(info.values) do
+      check(type(value) == 'string', 'choices must be strings')
+      table.insert(types, ('%q'):format(value))
+    end
   else
+    if info.table ~= nil then
+      local structured = false
+      for _, variant in ipairs(typeVariants(info.type)) do
+        local t = variant:gsub('%?$', '')
+        structured = structured or t == 'table' or t:match('^%{.*%}$') ~= nil
+      end
+      check(structured, 'fields require a table or array type, not ' .. info.type)
+    end
     for _, variant in ipairs(typeVariants(info.type)) do
       optional = optional or variant:match('%?$')
       local t = variant:gsub('%?$', '')
@@ -98,12 +168,7 @@ genType = function(info, mutable, input)
       elseif t == 'table' then
         table.insert(types, genTableType(info, mutable, input))
       elseif t:match('^%{.*%}$') then
-        local element = genType({ type = t:sub(2, -2) }, mutable, input)
-        if input and not mutable then
-          table.insert(types, '{ read [number]: ' .. element .. ' }')
-        else
-          table.insert(types, '{' .. element .. '}')
-        end
+        table.insert(types, genArrayType(genType({ type = t:sub(2, -2) }, mutable, input), mutable, input))
       else
         table.insert(types, t)
       end

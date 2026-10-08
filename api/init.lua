@@ -10,7 +10,7 @@ return {
       examples = {
         {
           description = "A noop conf.lua that sets all configuration settings to their defaults:",
-          code = "function lovr.conf(t)\n\n  -- Set the project version and identity\n  t.version = '0.19.0'\n  t.identity = 'default'\n\n  -- Set save directory precedence\n  t.saveprecedence = true\n\n  -- Enable or disable different modules\n  t.modules.audio = true\n  t.modules.data = true\n  t.modules.event = true\n  t.modules.graphics = true\n  t.modules.headset = true\n  t.modules.math = true\n  t.modules.physics = true\n  t.modules.system = true\n  t.modules.thread = true\n  t.modules.timer = true\n\n  -- Audio\n  t.audio.debug = false\n  t.audio.samplerate = 48000\n  t.audio.start = true\n  t.audio.reverb.type = 'convolution'\n  t.audio.reverb.rays = 4096\n  t.audio.reverb.bounces = 4\n  t.audio.reverb.duration = 2\n  t.audio.reverb.rate = .1\n\n  -- Graphics\n  t.graphics.debug = false\n  t.graphics.vsync = true\n  t.graphics.stencil = false\n  t.graphics.antialias = true\n  t.graphics.shadercache = true\n\n  -- Headset settings\n  t.headset.connect = true\n  t.headset.start = true\n  t.headset.supersample = false\n  t.headset.seated = false\n  t.headset.mask = true\n  t.headset.antialias = true\n  t.headset.stencil = false\n  t.headset.submitdepth = true\n  t.headset.overlay = false\n\n  -- Math settings\n  t.math.globals = true\n\n  -- Thread settings\n  t.thread.workers = -1\n\n  -- Configure the desktop window\n  t.window.width = 1080\n  t.window.height = 600\n  t.window.centered = true\n  t.window.fullscreen = false\n  t.window.resizable = false\n  t.window.title = 'LÖVR'\n  t.window.icon = nil\nend"
+          code = "function lovr.conf(t)\n\n  -- Set the project version and identity.\n  t.version = '0.19.0'\n  t.identity = 'default'\n\n  -- Set save directory precedence.\n  t.saveprecedence = true\n\n  -- Enable or disable different modules.\n  t.modules.audio = true\n  t.modules.data = true\n  t.modules.event = true\n  t.modules.graphics = true\n  t.modules.headset = true\n  t.modules.math = true\n  t.modules.physics = true\n  t.modules.system = true\n  t.modules.task = true\n  t.modules.thread = true\n  t.modules.timer = true\n\n  -- Audio settings.\n  t.audio.debug = false\n  t.audio.samplerate = nil\n  t.audio.start = true\n  t.audio.reverb.type = 'none'\n  t.audio.reverb.rays = 4096\n  t.audio.reverb.bounces = 16\n  t.audio.reverb.duration = 2\n  t.audio.reverb.rate = .1\n\n  -- Graphics settings.\n  t.graphics.debug = false\n  t.graphics.vsync = true\n  t.graphics.stencil = false\n  t.graphics.antialias = true\n  t.graphics.lowpower = false\n  t.graphics.hdr = false\n  t.graphics.shadercache = true\n\n  -- Headset settings.\n  t.headset.backend = 'openxr'\n  t.headset.connect = true\n  t.headset.start = true\n  t.headset.hdr = false\n  t.headset.debug = false\n  t.headset.supersample = false\n  t.headset.dynamicresolution = true\n  t.headset.seated = false\n  t.headset.mask = true\n  t.headset.antialias = true\n  t.headset.stencil = false\n  t.headset.submitdepth = true\n  t.headset.overlay = false\n  t.headset.controllerskeleton = 'controller'\n  t.headset.extensions = nil\n\n  -- Math settings.\n  t.math.globals = true\n\n  -- Thread settings.\n  t.thread.workers = -1\n\n  -- Configure the desktop window.\n  t.window.width = 1280\n  t.window.height = 800\n  t.window.centered = true\n  t.window.fullscreen = false\n  t.window.resizable = false\n  t.window.title = 'LÖVR'\n  t.window.icon = nil\nend"
         }
       },
       notes = "Disabling unused modules can improve startup time.\n\n`t.window` can be set to nil to avoid creating the window.  The window can later be opened manually using `lovr.system.openWindow`.\n\nEnabling the `t.graphics.debug` flag will add additional error checks and will send messages from the GPU driver to the `lovr.log` callback.  This will decrease performance but can help provide information on performance problems or other bugs.  It will also cause `lovr.graphics.newShader` to embed debugging information in shaders which allows inspecting variables and stepping through shaders line-by-line in tools like RenderDoc.\n\n`t.graphics.debug` can also be enabled using the `--graphics-debug` command line option.",
@@ -24,6 +24,8 @@ return {
               name = "t",
               type = "table",
               description = "The table to edit the configuration settings on.",
+              alias = "LovrConfiguration",
+              mutable = true,
               table = {
                 {
                   name = "version",
@@ -86,6 +88,11 @@ return {
                       description = "Whether the system module should be enabled."
                     },
                     {
+                      name = "task",
+                      type = "boolean",
+                      description = "Whether the task module should be enabled."
+                    },
+                    {
                       name = "thread",
                       type = "boolean",
                       description = "Whether the thread module should be enabled."
@@ -109,13 +116,14 @@ return {
                     },
                     {
                       name = "samplerate",
-                      type = "number",
+                      type = "number?",
                       description = "The sample rate to use for audio playback."
                     },
                     {
                       name = "start",
                       type = "boolean",
-                      description = "Whether the default playback device should start automatically when a source is first played."
+                      description = "Whether the default playback device should start automatically when a source is first played.",
+                      writeType = "boolean?"
                     },
                     {
                       name = "reverb",
@@ -125,7 +133,12 @@ return {
                         {
                           name = "type",
                           type = "ReverbType",
-                          description = "Which type of reverb to use."
+                          description = "Which type of reverb to use, or none to disable reverb.",
+                          values = {
+                            "none",
+                            "convolution",
+                            "parametric"
+                          }
                         },
                         {
                           name = "rays",
@@ -147,7 +160,8 @@ return {
                           type = "number",
                           description = "How often reverb is simulated, in seconds.  Shorter rates will make the reverb more responsive, but increase CPU usage."
                         }
-                      }
+                      },
+                      writeType = "table?"
                     }
                   }
                 },
@@ -177,9 +191,15 @@ return {
                       description = "Whether the desktop window rendering should be antialiased."
                     },
                     {
+                      name = "lowpower",
+                      type = "boolean",
+                      description = "Whether to prefer a low-power GPU."
+                    },
+                    {
                       name = "hdr",
                       type = "boolean",
-                      description = "Whether the (**super experimental**) HDR mode should be enabled.  See `lovr.graphics.isHDR`."
+                      description = "Whether the (**super experimental**) HDR mode should be enabled.  See `lovr.graphics.isHDR`.",
+                      required = true
                     },
                     {
                       name = "shadercache",
@@ -194,9 +214,19 @@ return {
                   description = "Configuration for the headset.",
                   table = {
                     {
+                      name = "backend",
+                      type = "string",
+                      description = "The native headset backend to use: `auto`, `openxr`, or `openvr`.  Defaults to `openxr`, which uses OpenXR with the existing primary-session and desktop fallback. `openvr` uses OpenVR overlays only and never attempts OpenXR.  With an overlay, `auto` tries OpenXR with overlay support required, then an OpenVR overlay, then an ordinary OpenXR session, then the desktop simulator.  Without an overlay, `auto` tries OpenXR, then the desktop simulator.  Backend selection finishes before graphics initialization and does not switch backends once graphics initialization begins.",
+                      values = {
+                        "auto",
+                        "openxr",
+                        "openvr"
+                      }
+                    },
+                    {
                       name = "connect",
                       type = "boolean",
-                      description = "Whether LÖVR should try to connect to VR hardware at startup."
+                      description = "Whether LÖVR should try to connect to VR hardware at startup.  When false, no native runtime connection is attempted, regardless of the selected backend."
                     },
                     {
                       name = "start",
@@ -204,9 +234,20 @@ return {
                       description = "Whether a VR session should begin at startup."
                     },
                     {
+                      name = "hdr",
+                      type = "boolean",
+                      description = "Whether HDR headset rendering should be enabled."
+                    },
+                    {
+                      name = "debug",
+                      type = "boolean",
+                      description = "Whether to log headset debugging messages."
+                    },
+                    {
                       name = "supersample",
-                      type = "number",
-                      description = "A scaling factor to apply to the headset texture.  Can be any positive floating point number, which gets multiplied by the default texture resolution.  A value greater than 1 improves visual quality but reduces performance.  Can also be a boolean, where \"true\" means \"2.0\"."
+                      type = "boolean | number | nil",
+                      description = "A scaling factor to apply to the headset texture.  Can be any positive floating point number, which gets multiplied by the default texture resolution.  A value greater than 1 improves visual quality but reduces performance.  Can also be a boolean, where \"true\" means \"2.0\".",
+                      readType = "boolean"
                     },
                     {
                       name = "seated",
@@ -216,17 +257,25 @@ return {
                     {
                       name = "mask",
                       type = "boolean",
-                      description = "Enable or disable the headset mask.  This is an optimization that skips rendering pixels on the edges of the headset texture that can't be seen while in the headset due to lens distortion.  When enabled, at the beginning of the frame, the edges of the headset texture will be filled in with black (and depth = 1)."
+                      description = "Enable or disable the headset mask.  This is an optimization that skips rendering pixels on the edges of the headset texture that can't be seen while in the headset due to lens distortion.  When enabled, at the beginning of the frame, the edges of the headset texture will be filled in with black (and depth = 1).",
+                      writeType = "boolean?"
                     },
                     {
                       name = "antialias",
                       type = "boolean",
-                      description = "Whether headset rendering should be antialiased."
+                      description = "Whether headset rendering should be antialiased.",
+                      writeType = "boolean?"
                     },
                     {
                       name = "stencil",
                       type = "boolean",
                       description = "Whether headset rendering should have a stencil buffer."
+                    },
+                    {
+                      name = "dynamicresolution",
+                      type = "boolean",
+                      description = "Whether the headset texture resolution can change to maintain performance.",
+                      writeType = "boolean?"
                     },
                     {
                       name = "submitdepth",
@@ -235,8 +284,25 @@ return {
                     },
                     {
                       name = "overlay",
-                      type = "boolean",
-                      description = "Whether the project should run as an overlay.  Can also be a number to control sort order against other overlays (default is zero, higher numbers go on top).  Requires the `overlay` headset feature to be supported, see `lovr.headset.getFeatures`."
+                      type = "boolean | number",
+                      description = "Whether the project should run as an overlay.  Can also be a number to control sort order against other overlays (default is zero, higher numbers go on top).  With `openxr`, unsupported overlays fall back to a primary session.  `openvr` supports overlays only and never attempts OpenXR.  With `auto`, an overlay request tries OpenXR with overlay support required, then OpenVR, then an ordinary OpenXR session, then the desktop simulator.  See `lovr.headset.getFeatures` for whether the selected session supports overlays.",
+                      readType = "boolean"
+                    },
+                    {
+                      name = "controllerskeleton",
+                      type = "string",
+                      description = "Which controller skeleton to use: none, controller, or natural.",
+                      values = {
+                        "none",
+                        "controller",
+                        "natural"
+                      },
+                      writeType = "string?"
+                    },
+                    {
+                      name = "extensions",
+                      type = "{string}?",
+                      description = "Additional OpenXR extensions to enable."
                     }
                   }
                 },
@@ -260,24 +326,28 @@ return {
                     {
                       name = "workers",
                       type = "number",
-                      description = "The number of worker threads to spawn.  Can be negative, which will be added to the number of cores in the system."
+                      description = "The number of worker threads to spawn.  Can be negative, which will be added to the number of cores in the system.",
+                      writeType = "number?"
                     }
                   }
                 },
                 {
                   name = "window",
-                  type = "table",
-                  description = "Configuration for the window.",
+                  type = "table?",
+                  description = "Configuration for the window, or nil to avoid opening a window.",
+                  readType = "table",
                   table = {
                     {
                       name = "width",
                       type = "number",
-                      description = "The width of the window."
+                      description = "The width of the window.",
+                      writeType = "number?"
                     },
                     {
                       name = "height",
                       type = "number",
-                      description = "The height of the window."
+                      description = "The height of the window.",
+                      writeType = "number?"
                     },
                     {
                       name = "centered",
@@ -297,12 +367,13 @@ return {
                     {
                       name = "title",
                       type = "string",
-                      description = "The window title."
+                      description = "The window title.",
+                      writeType = "string?"
                     },
                     {
                       name = "icon",
-                      type = "string",
-                      description = "The path to the window icon file."
+                      type = "string | Blob | Image | nil",
+                      description = "A path, Blob, or Image for the window icon, or nil for no icon."
                     }
                   }
                 }
@@ -453,7 +524,7 @@ return {
       description = "This callback is called when a key is pressed.",
       key = "lovr.keypressed",
       module = "lovr",
-      notes = "By default this will be fired only once while a key is held down. This can be changed to fire multiple times by setting `lovr.system.setKeyRepeat` to true. In that case `isrepeat` will become true whenever the event is the result of a key repeat and false on a single press.",
+      notes = "By default this will be fired only once while a key is held down. This can be changed to fire multiple times by setting `lovr.system.setKeyRepeat` to true. In that case `isrepeat` will become true whenever the event is the result of a key repeat and false on a single press.\n\n`modifiers` is a snapshot captured with the key event.  The GLFW backend includes the host's Caps Lock and Num Lock flags by enabling `GLFW_LOCK_KEY_MODS`.  Other backends currently return nil.  Nil means that the snapshot is unavailable, not that every modifier is inactive.  When the table is present, every field is a boolean.  It is frozen in Luau and a plain table in Lua and LuaJIT.  Later key events do not change it.\n\nThis snapshot does not resolve a layout-dependent key symbol or describe arbitrary keyboard remapping.  The key and scancode arguments are unchanged.  `lovr.textinput` remains the callback for text.",
       related = {
         "lovr.system.wasKeyPressed",
         "lovr.keyreleased",
@@ -477,6 +548,44 @@ return {
               name = "isrepeat",
               type = "boolean",
               description = "Whether the event is the result of a key repeat instead of an actual press."
+            },
+            {
+              name = "modifiers",
+              type = "table?",
+              description = "The modifier snapshot for this event, or nil when unavailable.",
+              mutable = false,
+              table = {
+                {
+                  name = "shift",
+                  type = "boolean",
+                  description = "Whether Shift is active."
+                },
+                {
+                  name = "control",
+                  type = "boolean",
+                  description = "Whether Control is active."
+                },
+                {
+                  name = "alt",
+                  type = "boolean",
+                  description = "Whether Alt is active."
+                },
+                {
+                  name = "super",
+                  type = "boolean",
+                  description = "Whether Super (the Windows or Command key) is active."
+                },
+                {
+                  name = "capsLock",
+                  type = "boolean",
+                  description = "Whether Caps Lock is active."
+                },
+                {
+                  name = "numLock",
+                  type = "boolean",
+                  description = "Whether Num Lock is active."
+                }
+              }
             }
           },
           returns = {}
@@ -490,6 +599,7 @@ return {
       description = "This callback is called when a key is released.",
       key = "lovr.keyreleased",
       module = "lovr",
+      notes = "`modifiers` is a snapshot captured with the key event.  The GLFW backend includes the host's Caps Lock and Num Lock flags by enabling `GLFW_LOCK_KEY_MODS`.  Other backends currently return nil.  Nil means that the snapshot is unavailable, not that every modifier is inactive.  When the table is present, every field is a boolean.  It is frozen in Luau and a plain table in Lua and LuaJIT.  Later key events do not change it.\n\nThis snapshot does not resolve a layout-dependent key symbol or describe arbitrary keyboard remapping.  The key and scancode arguments are unchanged.  `lovr.textinput` remains the callback for text.",
       related = {
         "lovr.system.wasKeyReleased",
         "lovr.keypressed",
@@ -508,6 +618,44 @@ return {
               name = "scancode",
               type = "number",
               description = "The id of the key (ignores keyboard layout, may vary between keyboards)."
+            },
+            {
+              name = "modifiers",
+              type = "table?",
+              description = "The modifier snapshot for this event, or nil when unavailable.",
+              mutable = false,
+              table = {
+                {
+                  name = "shift",
+                  type = "boolean",
+                  description = "Whether Shift is active."
+                },
+                {
+                  name = "control",
+                  type = "boolean",
+                  description = "Whether Control is active."
+                },
+                {
+                  name = "alt",
+                  type = "boolean",
+                  description = "Whether Alt is active."
+                },
+                {
+                  name = "super",
+                  type = "boolean",
+                  description = "Whether Super (the Windows or Command key) is active."
+                },
+                {
+                  name = "capsLock",
+                  type = "boolean",
+                  description = "Whether Caps Lock is active."
+                },
+                {
+                  name = "numLock",
+                  type = "boolean",
+                  description = "Whether Num Lock is active."
+                }
+              }
             }
           },
           returns = {}
@@ -15840,7 +15988,7 @@ return {
                   arguments = {
                     {
                       name = "strings",
-                      type = "table",
+                      type = "{*}",
                       description = "A table of multicolor strings to wrap.  The colors aren't used for anything, this just exists to match `Pass:text`."
                     },
                     {
@@ -15950,7 +16098,7 @@ return {
                   arguments = {
                     {
                       name = "strings",
-                      type = "table",
+                      type = "{*}",
                       description = "A table of multicolor strings.  The colors aren't used for anything, this just exists to match `Pass:text`."
                     },
                     {
@@ -16019,7 +16167,7 @@ return {
                   arguments = {
                     {
                       name = "strings",
-                      type = "table",
+                      type = "{*}",
                       description = "A table of multicolor strings to measure.  The colors aren't used for anything, this just exists to match `Pass:text`."
                     }
                   },
@@ -24433,7 +24581,7 @@ return {
                   arguments = {
                     {
                       name = "colortext",
-                      type = "table",
+                      type = "{*}",
                       description = "A table of multicolor strings to render.  Can be a flat table, like `{ color, string, color, string }`, or as nested pairs, like `{ { color, string }, { color, string } }`.  Colors can be given as tables, vectors, or hexcodes."
                     },
                     {
@@ -24510,7 +24658,7 @@ return {
                   arguments = {
                     {
                       name = "colortext",
-                      type = "table",
+                      type = "{*}",
                       description = "A table of multicolor strings to render.  Can be a flat table, like `{ color, string, color, string }`, or as nested pairs, like `{ { color, string }, { color, string } }`.  Colors can be given as tables, vectors, or hexcodes."
                     },
                     {
@@ -24555,7 +24703,7 @@ return {
                   arguments = {
                     {
                       name = "colortext",
-                      type = "table",
+                      type = "{*}",
                       description = "A table of multicolor strings to render.  Can be a flat table, like `{ color, string, color, string }`, or as nested pairs, like `{ { color, string }, { color, string } }`.  Colors can be given as tables, vectors, or hexcodes."
                     },
                     {
@@ -27105,8 +27253,8 @@ return {
               description = "The right button on a dpad, or a hand tracking thumb swipe gesture."
             },
             {
-              name = "bumper",
-              description = "The bumper or shoulder button (usually located above a trigger)."
+              name = "shoulder",
+              description = "The shoulder button (usually located above a trigger)."
             },
             {
               name = "nib",
@@ -27729,7 +27877,7 @@ return {
                     {
                       name = "overlay",
                       type = "boolean",
-                      description = "Whether LÖVR is able to run as an overlay on top of other VR applications.  When unsupported, the `t.headset.overlay` option in `lovr.conf` will be ignored.  Currently this will also be false if `t.headset.overlay` is false."
+                      description = "Whether the selected session runs as an overlay on top of other VR applications. This is false when `t.headset.overlay` is false or backend selection falls back to a primary OpenXR session or the desktop simulator.  `t.headset.backend = 'openxr'` preserves primary-session fallback when overlays are unsupported.  `openvr` supports overlays only and never attempts OpenXR.  With an overlay request, `auto` tries OpenXR with overlay support required, then OpenVR, then an ordinary OpenXR session, then the desktop simulator.  Selection finishes before graphics initialization; this feature does not cause a later backend switch."
                     },
                     {
                       name = "proximity",
@@ -28706,6 +28854,31 @@ return {
           }
         },
         {
+          name = "isMainSessionVisible",
+          tag = "headset-misc",
+          summary = "Check if another application is presenting.",
+          description = "Returns whether an application other than this one is presenting to the headset.\n\nOnly an overlay session is told this.  An overlay shares the runtime with whatever holds the primary session, and the runtime reports when that session's visibility changes.  A session that did not ask to be an overlay, through `t.headset.overlay` in `lovr.conf`, always reads false.",
+          key = "lovr.headset.isMainSessionVisible",
+          module = "lovr.headset",
+          notes = "An overlay that draws a background of its own uses this to decide whether to draw it.  Drawn while another application is presenting, an opaque background covers that application's frame.\n\nFalse is also the answer on a runtime that never reports the state, which is why it is the assumption rather than an unknown: an overlay with nothing behind it is the case that wants a background, and drawing one there is the harmless direction to be wrong in.",
+          related = {
+            "lovr.headset.isVisible",
+            "lovr.headset.isActive"
+          },
+          variants = {
+            {
+              arguments = {},
+              returns = {
+                {
+                  name = "visible",
+                  type = "boolean",
+                  description = "Whether another application is presenting."
+                }
+              }
+            }
+          }
+        },
+        {
           name = "isMounted",
           tag = "headset-misc",
           summary = "Check if the headset is \"mounted\" (worn on a head).",
@@ -28839,7 +29012,7 @@ return {
           name = "isVisible",
           tag = "headset-misc",
           summary = "Check if content is being shown in the headset display.",
-          description = "Returns whether LÖVR's content is being presented to the headset display.  Normally this will be true, but some VR runtimes allow applications to be hidden or \"minimized\", similar to desktop windows.",
+          description = "Returns whether LÖVR's content is being presented to the headset display, and whether the main application session is visible.  Normally both are true, but VR runtimes may hide or minimize either session.",
           key = "lovr.headset.isVisible",
           module = "lovr.headset",
           notes = "`lovr.draw` may still be called even when the application is invisible, and apps should continue to render the scene normally because the VR system may use this for timing info.  If the VR system decides that the application no longer needs to render, LÖVR will stop calling `lovr.draw`.",
@@ -28855,7 +29028,12 @@ return {
                 {
                   name = "visible",
                   type = "boolean",
-                  description = "Whether the application is visible."
+                  description = "Whether this application is visible."
+                },
+                {
+                  name = "main",
+                  type = "boolean",
+                  description = "Whether the main headset session is visible."
                 }
               }
             }

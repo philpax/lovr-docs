@@ -19,9 +19,14 @@ return {
           name = 'overlay',
           type = 'boolean',
           description = [[
-            Whether LÖVR is able to run as an overlay on top of other VR applications.  When
-            unsupported, the `t.headset.overlay` option in `lovr.conf` will be ignored.  Currently
-            this will also be false if `t.headset.overlay` is false.
+            Whether the selected session runs as an overlay on top of other VR applications.
+            This is false when `t.headset.overlay` is false or backend selection falls back to a
+            primary OpenXR session or the desktop simulator.  `t.headset.backend = 'openxr'`
+            preserves primary-session fallback when overlays are unsupported.  `openvr` supports
+            overlays only and never attempts OpenXR.  With an overlay request, `auto` tries OpenXR
+            with overlay support required, then OpenVR, then an ordinary OpenXR session, then the
+            desktop simulator.  Selection finishes before graphics initialization; this feature
+            does not cause a later backend switch.
           ]]
         },
         {

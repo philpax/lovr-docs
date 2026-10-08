@@ -221,9 +221,27 @@ return {
           description = 'Configuration for the headset.',
           table = {
             {
+              name = 'backend',
+              type = 'string',
+              values = { 'auto', 'openxr', 'openvr' },
+              description = [[
+                The native headset backend to use: `auto`, `openxr`, or `openvr`.  Defaults to
+                `openxr`, which uses OpenXR with the existing primary-session and desktop fallback.
+                `openvr` uses OpenVR overlays only and never attempts OpenXR.  With an overlay,
+                `auto` tries OpenXR with overlay support required, then an OpenVR overlay, then an
+                ordinary OpenXR session, then the desktop simulator.  Without an overlay, `auto`
+                tries OpenXR, then the desktop simulator.  Backend selection finishes before
+                graphics initialization and does not switch backends once graphics initialization
+                begins.
+              ]]
+            },
+            {
               name = 'connect',
               type = 'boolean',
-              description = 'Whether LÖVR should try to connect to VR hardware at startup.'
+              description = [[
+                Whether LÖVR should try to connect to VR hardware at startup.  When false, no native
+                runtime connection is attempted, regardless of the selected backend.
+              ]]
             },
             {
               name = 'start',
@@ -300,8 +318,12 @@ return {
               readType = 'boolean',
               description = [[
                 Whether the project should run as an overlay.  Can also be a number to control sort
-                order against other overlays (default is zero, higher numbers go on top).  Requires
-                the `overlay` headset feature to be supported, see `lovr.headset.getFeatures`.
+                order against other overlays (default is zero, higher numbers go on top).  With
+                `openxr`, unsupported overlays fall back to a primary session.  `openvr` supports
+                overlays only and never attempts OpenXR.  With `auto`, an overlay request tries
+                OpenXR with overlay support required, then OpenVR, then an ordinary OpenXR session,
+                then the desktop simulator.  See `lovr.headset.getFeatures` for whether the selected
+                session supports overlays.
               ]]
             },
             {
@@ -461,6 +483,7 @@ return {
           t.graphics.shadercache = true
 
           -- Headset settings.
+          t.headset.backend = 'openxr'
           t.headset.connect = true
           t.headset.start = true
           t.headset.hdr = false
