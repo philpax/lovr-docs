@@ -1,6 +1,17 @@
 return {
   tag = 'vector-lib',
   external = true,
+  fields = {
+    { name = 'back', type = 'vector', description = 'The vector (0, 0, 1).' },
+    { name = 'backward', type = 'vector', description = 'The vector (0, 0, 1).' },
+    { name = 'down', type = 'vector', description = 'The vector (0, -1, 0).' },
+    { name = 'forward', type = 'vector', description = 'The vector (0, 0, -1).' },
+    { name = 'left', type = 'vector', description = 'The vector (-1, 0, 0).' },
+    { name = 'one', type = 'vector', description = 'The vector (1, 1, 1).' },
+    { name = 'right', type = 'vector', description = 'The vector (1, 0, 0).' },
+    { name = 'up', type = 'vector', description = 'The vector (0, 1, 0).' },
+    { name = 'zero', type = 'vector', description = 'The vector (0, 0, 0).' }
+  },
   summary = 'What is your vector victor.',
   description = [[
     The vector module implements a 3D vector type.  Vectors are useful for holding multiple numbers

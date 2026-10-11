@@ -1,6 +1,9 @@
 return {
   tag = 'vector-lib',
   external = true,
+  fields = {
+    { name = 'identity', type = 'quaternion', description = 'The quaternion (0, 0, 0, 1), representing no rotation.' }
+  },
   summary = 'Quaternions, how do they work.',
   description = [[
     The quaternion module contains...quaternions, which are a useful way of storing 3D rotations.

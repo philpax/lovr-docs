@@ -36,6 +36,18 @@ local globalModule = {
   }
 }
 
+-- These constructors are aliases of the native callable library tables in l_math.c.
+local mathConstructorModule = {
+  newQuat = 'QuaternionModule',
+  quat = 'QuaternionModule',
+  newVec2 = 'VectorModule',
+  newVec3 = 'VectorModule',
+  newVec4 = 'VectorModule',
+  vec2 = 'VectorModule',
+  vec3 = 'VectorModule',
+  vec4 = 'VectorModule'
+}
+
 local genType
 
 local function check(condition, message)
@@ -55,14 +67,16 @@ end
 local genTableType
 
 -- An array, read-only where LÖVR reads it from its caller (see genType).
-local function genArrayType(element, mutable, input)
-  if input and not mutable then return '{ read [number]: ' .. element .. ' }' end
+local function genArrayType(element, mutable, input, keyType)
+  if keyType or (input and not mutable) then
+    return ('{ %s[%s]: %s }'):format(input and not mutable and 'read ' or '', keyType or 'number', element)
+  end
   return '{' .. element .. '}'
 end
 
 -- Fields named `[].name` describe each element of an array, and `[][n]` a position in each element.
 -- Positions become a union, because Luau has no heterogeneous tuple type.
-local function genElementType(fields, mutable, input)
+local function genElementType(fields, mutable, input, keyType)
   local stripped, positional = {}, true
   for _, field in ipairs(fields) do
     local name = field.name:sub(3):gsub('^%.', '')
@@ -72,17 +86,20 @@ local function genElementType(fields, mutable, input)
     table.insert(stripped, copy)
     positional = positional and name:match('^%[%d+%]$') ~= nil
   end
-  if not positional then return genArrayType(genTableType({ table = stripped }, mutable, input), mutable, input) end
+  if not positional then return genArrayType(genTableType({ table = stripped }, mutable, input), mutable, input, keyType) end
   local seen, variants = {}, {}
   for _, field in ipairs(stripped) do
     local variant = genType(field, mutable, input)
     if not seen[variant] then seen[variant] = true table.insert(variants, variant) end
   end
-  return genArrayType(genArrayType(table.concat(variants, ' | '), mutable, input), mutable, input)
+  return genArrayType(genArrayType(table.concat(variants, ' | '), mutable, input), mutable, input, keyType)
 end
 
 genTableType = function(info, mutable, input)
-  if not info.table then return '{}' end
+  if not info.table then
+    check(not info.keyType, 'table keys require element fields')
+    return '{}'
+  end
 
   checkSequence(info.table, 'fields')
   local names, elements, own = {}, 0, 0
@@ -95,7 +112,15 @@ genTableType = function(info, mutable, input)
     if name:match('^%[%]') then elements = elements + 1 else own = own + 1 end
   end
   check(elements == 0 or own == 0, 'a table cannot mix element fields with its own fields')
-  if elements > 0 then return genElementType(info.table, mutable, input) end
+  if elements > 0 then
+    local keyType
+    if info.keyType then
+      check(type(info.keyType) == 'string', 'table keys must have a string type')
+      keyType = genType({ type = info.keyType })
+    end
+    return genElementType(info.table, mutable, input, keyType)
+  end
+  check(not info.keyType, 'table keys require element fields')
 
   local fields = {}
   for _, field in ipairs(info.table) do
@@ -321,10 +346,15 @@ return function(api)
     return kept
   end
 
-  local function writeFunction(fn)
+  local function writeFunction(fn, callableModule)
     fn = { name = fn.name, variants = usableVariants(fn) }
 
-    if #fn.variants > 1 then
+    if callableModule then
+      write('  %s: %s\n', fn.name, callableModule)
+      for i, variant in ipairs(fn.variants) do
+        write('    & (%s)%s\n', genFunctionType(variant), i == #fn.variants and ',' or '')
+      end
+    elseif #fn.variants > 1 then
       write('  %s:\n', fn.name)
 
       for i, variant in ipairs(fn.variants) do
@@ -408,8 +438,12 @@ return function(api)
     if module.name ~= 'lovr' and #module.functions > 0 then
       write('export type %sModule = {\n', module.name:gsub('^%l', string.upper))
 
+      for _, field in ipairs(module.fields or {}) do
+        write('  %s: %s,\n', field.name, genType(field))
+      end
+
       for _, fn in ipairs(module.functions) do
-        writeFunction(fn)
+        writeFunction(fn, module.name == 'math' and mathConstructorModule[fn.name] or nil)
       end
 
       write('}\n\n')
@@ -429,6 +463,7 @@ return function(api)
   end
 
   write('declare lovr: {\n')
+  write('  handlers: { [string]: ((...any) -> ...any)? },\n')
 
   for _, module in ipairs(api.modules) do
     if module.name == 'lovr' then
@@ -464,6 +499,34 @@ return function(api)
   end
 
   write('}\n')
+
+  -- These globals are installed only when t.math.globals is enabled.
+  -- The vector and quaternion libraries themselves are always present.
+  local globalAliases = {
+    vector = { 'Vec2', 'Vec3', 'Vec4', 'vec2', 'vec3', 'vec4' },
+    quaternion = { 'Quat', 'quat' },
+    math = { 'Mat4', 'mat4' }
+  }
+  for _, module in ipairs(api.modules) do
+    local names = globalAliases[module.name]
+    if names then
+      local constructor
+      for _, fn in ipairs(module.functions) do
+        if fn.name == (module.name == 'math' and 'newMat4' or 'pack') then constructor = fn end
+      end
+      check(constructor ~= nil, 'missing constructor for ' .. module.name .. ' aliases')
+      for _, name in ipairs(names) do
+        local types = {}
+        if module.name ~= 'math' then
+          table.insert(types, module.name:gsub('^%l', string.upper) .. 'Module')
+        end
+        for _, variant in ipairs(usableVariants(constructor)) do
+          table.insert(types, '(' .. genFunctionType(variant) .. ')')
+        end
+        write('\ndeclare %s: (%s)?\n', name, table.concat(types, ' & '))
+      end
+    end
+  end
 
   for _, module in ipairs(api.modules) do
     local native = globalModule[module.name]
