@@ -24,7 +24,7 @@ return {
     Each stack has a limit of the number of copies it can store.  There can be 16 transforms and 4
     render states saved.
 
-    The `state` stack does not save the camera info or shader variables changed with `Pass:send`.
+    The `state` stack saves shader variables changed with `Pass:send`, but does not save the camera info.
   ]],
   related = {
     'Pass:pop',
