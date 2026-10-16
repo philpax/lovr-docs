@@ -12,7 +12,7 @@ return {
       description = 'A filename or Blob containing an image file to load.'
     },
     image = {
-      type = 'string',
+      type = 'Image',
       description = 'An Image object holding pixel data to load into the Texture.'
     },
     width = {
