@@ -3,6 +3,10 @@ return {
   description = 'The different levels of foveation supported by `lovr.headset.setFoveation`.',
   values = {
     {
+      name = 'none',
+      description = 'No foveation.  `lovr.headset.getFoveation` returns it while foveation is disabled.'
+    },
+    {
       name = 'low',
       description = 'Low foveation.'
     },
